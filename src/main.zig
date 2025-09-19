@@ -27,14 +27,14 @@ pub const State = struct {
     /// Initialize a state from a slice of bytes.
     pub fn init(initial_state: [block_bytes]u8) State {
         var state = State{ .st = undefined };
-        mem.copy(u8, state.asBytes(), &initial_state);
+        @memcpy(state.asBytes(), &initial_state);
         state.endianSwap();
         return state;
     }
 
     // A representation of the state as 32-bit words.
     fn asWords(self: *State) *[12]u32 {
-        return @ptrCast(*[12]u32, &self.st);
+        return @ptrCast(&self.st);
     }
 
     /// A representation of the state as bytes. The byte order is architecture-dependent.
@@ -75,18 +75,18 @@ pub const State = struct {
     /// Extract the first bytes of the state.
     pub fn extract(self: *State, out: []u8) void {
         self.endianSwap();
-        mem.copy(u8, out, self.asBytes()[0..out.len]);
+        @memcpy(out, self.asBytes()[0..out.len]);
         self.endianSwap();
     }
 
     /// Set the words storing the bytes of a given range to zero.
     pub fn clear(self: *State, from: usize, to: usize) void {
-        mem.set(u32, self.asWords()[from / 4 .. (to + 3) / 4], 0);
+        @memset(self.asWords()[from / 4 .. (to + 3) / 4], 0);
     }
 
     /// Apply the Xoodoo permutation.
     pub fn permute(self: *State) void {
-        const rot8x32 = comptime if (builtin.target.cpu.arch.endian() == .Big)
+        const rot8x32 = comptime if (builtin.target.cpu.arch.endian() == .big)
             [_]i32{ 9, 10, 11, 8, 13, 14, 15, 12, 1, 2, 3, 0, 5, 6, 7, 4 }
         else
             [_]i32{ 11, 8, 9, 10, 15, 12, 13, 14, 3, 0, 1, 2, 7, 4, 5, 6 };
@@ -109,7 +109,7 @@ pub const State = struct {
             b ^= ~c & a;
             c ^= ~a & b;
             b = math.rotl(Lane, b, 1);
-            c = @bitCast(Lane, @shuffle(u8, @bitCast(@Vector(16, u8), c), undefined, rot8x32));
+            c = @bitCast(@shuffle(u8, @as(@Vector(16, u8), @bitCast(c)), undefined, rot8x32));
         }
         self.st[0] = a;
         self.st[1] = b;
@@ -118,7 +118,7 @@ pub const State = struct {
 };
 
 test "xoodoo" {
-    const bytes = [_]u8{0x01} ** State.block_bytes;
+    const bytes = @as([State.block_bytes]u8, @splat(0x01));
     var st = State.init(bytes);
     var out: [State.block_bytes]u8 = undefined;
     st.permute();
